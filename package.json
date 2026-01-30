@@ -1,0 +1,44 @@
+{
+    "name": "@contextserve/mcp-scan",
+    "version": "1.1.0",
+    "description": "Zero-dependency CLI tool for discovering unprotected MCP (Model Context Protocol) servers",
+    "type": "module",
+    "bin": {
+        "mcp-scan": "./bin/mcp-scan.js"
+    },
+    "main": "./src/scanner.js",
+    "files": [
+        "bin/",
+        "src/",
+        "README.md",
+        "LICENSE"
+    ],
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "start": "node bin/mcp-scan.js",
+        "test": "node --test",
+        "lint": "node --check bin/mcp-scan.js src/*.js test/*.js"
+    },
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "security",
+        "scanner",
+        "audit",
+        "claude",
+        "anthropic",
+        "sse"
+    ],
+    "author": "Context Serve <info@contextserve.ai>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/contextserve/mcp-scan.git"
+    },
+    "bugs": {
+        "url": "https://github.com/contextserve/mcp-scan/issues"
+    },
+    "homepage": "https://contextserve.ai"
+}

@@ -4,9 +4,9 @@
     "description": "Zero-dependency CLI tool for discovering unprotected MCP (Model Context Protocol) servers",
     "type": "module",
     "bin": {
-        "mcp-scan": "./bin/mcp-scan.js"
+        "mcp-scan": "bin/mcp-scan.js"
     },
-    "main": "./src/scanner.js",
+    "main": "src/scanner.js",
     "files": [
         "bin/",
         "src/",

@@ -24,13 +24,13 @@ This tool helps security teams and developers identify vulnerable MCP endpoints 
 ## Installation
  
 ```bash
-npm install -g @contextserve/mcp-scan
+npm install -g @contextware/mcp-scan
 ```
  
 Or run directly with npx:
  
 ```bash
-npx @contextserve/mcp-scan configs
+npx @contextware/mcp-scan configs
 ```
 
 ## Installation for Development
@@ -39,7 +39,7 @@ If you want to contribute or run the tool from source:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/contextserve/mcp-scan.git
+   git clone https://github.com/contextware/mcp-scan.git
    cd mcp-scan
    ```
 
@@ -350,6 +350,6 @@ MIT License - see [LICENSE](LICENSE) file.
 ## Related
  
 - [MCP Specification](https://spec.modelcontextprotocol.io/)
-- [Context Serve](https://contextserve.ai) - Managed MCP security and integration platform
+- [Contextware](https://contextware.ai) - Managed MCP security and integration platform
 
 

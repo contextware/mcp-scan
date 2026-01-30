@@ -129,7 +129,7 @@ ${c('bold', 'ETHICAL USE')}
     Only scan networks and systems you own or have explicit permission to test.
  
 ${c('bold', 'MORE INFO')}
-    https://github.com/contextserve/mcp-scan
+    https://github.com/contextware/mcp-scan
 `;
 
 const BANNER = `
@@ -513,7 +513,7 @@ function printProtectionAdvice() {
     console.log('4. Use firewall rules to restrict access');
     console.log('5. Set auth tokens/API keys in your AI tool configs');
     console.log('');
-    console.log(c('cyan', 'For managed MCP security, visit: https://contextserve.ai'));
+    console.log(c('cyan', 'For managed MCP security, visit: https://github.com/contextware/mcp-scan'));
     console.log('');
 }
 

@@ -301,16 +301,25 @@ iptables -A INPUT -p tcp --dport 3000 -j DROP
 ```
 
 ## Project Structure
+
+```text
 mcp-scan/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── npm-publish.yml
 ├── bin/
 │   └── mcp-scan.js
 ├── src/
-│   ├── scanner.js
-│   └── config-scanner.js
-├── package.json 
-├── README.md
+│   ├── config-scanner.js
+│   └── scanner.js
+├── test/
+│   └── scanner.test.js
+├── .gitignore
 ├── LICENSE
-└── .gitignore
+├── README.md
+└── package.json
+```
 
 ## Contributing
  

@@ -73,7 +73,7 @@ ${c('bold', 'OPTIONS')}
     -p, --ports <list>  Ports to scan (comma-separated)
                         Default: ${DEFAULT_PORTS.join(',')}
     -t, --timeout <ms>  Request timeout in milliseconds
-                        Default: 2000
+                        Default: 5000
     --https             Use HTTPS instead of HTTP
     -d, --delay <ms>    Delay between requests in milliseconds
                         Default: 0
@@ -147,7 +147,7 @@ function parseArgs(args) {
         command: 'network',  // default command
         target: null,
         ports: DEFAULT_PORTS,
-        timeout: 2000,
+        timeout: 5000,
         https: false,
         includeLocal: false,
         delay: 0,
@@ -508,7 +508,7 @@ function printProtectionAdvice() {
     console.log(c('bold', '───────────────────────────────────────────────────────────────'));
     console.log('');
     console.log('1. Add authentication to your MCP server configuration');
-    console.log('2. Use a reverse proxy with auth (nginx, Caddy, etc.)');
+    console.log('2. Use a reverse proxy with auth (nginx, Traefik,Caddy, etc.)');
     console.log('3. Bind servers to localhost only (127.0.0.1)');
     console.log('4. Use firewall rules to restrict access');
     console.log('5. Set auth tokens/API keys in your AI tool configs');

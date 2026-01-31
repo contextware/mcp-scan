@@ -106,7 +106,7 @@ mcp-scan show-paths
 | Option | Description |
 |--------|-------------|
 | `-p, --ports <list>` | Ports to scan (comma-separated). Default: 3000,3001,3010,3011,8000,8080,8888,9000,9090 |
-| `-t, --timeout <ms>` | Request timeout in milliseconds. Default: 2000 |
+| `-t, --timeout <ms>` | Request timeout in milliseconds. Default: 5000 |
 | `--https` | Use HTTPS instead of HTTP |
 | `--include-local` | Include local (stdio) servers in config scan |
 | `-j, --json` | Output results as JSON |
@@ -178,7 +178,7 @@ NETWORK SCAN
  
 Target: localhost
 Ports: 3000, 3001, 3010, 3011, 8000, 8080, 8888, 9000, 9090
-Timeout: 2000ms
+Timeout: 5000ms
 Protocol: HTTP
  
 Hosts scanned: 2
@@ -289,7 +289,7 @@ If this tool finds unprotected servers:
 server.listen({ host: '127.0.0.1', port: 3000 });
  
 # Or use a reverse proxy with auth
-# nginx, Caddy, etc.
+# nginx, Traefik, Caddy, etc.
 ```
  
 ### 4. Firewall Rules

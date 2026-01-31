@@ -31,7 +31,7 @@ import dns from 'node:dns/promises';
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Default ports commonly used by MCP servers
-export const DEFAULT_PORTS = [3000, 3001, 3010, 3011, 8000, 8080, 8888, 9000, 9090];
+export const DEFAULT_PORTS = [80, 443, 3000, 3001, 3010, 3011, 8000, 8080, 8888, 9000, 9090];
 
 // MCP endpoint paths to check
 export const MCP_PATHS = [
@@ -242,15 +242,33 @@ function httpGet(url, timeout) {
  * @returns {Promise<ScanResult|null>}
  */
 export async function checkEndpoint(host, port, path, timeout, useHttps = false) {
-    const protocol = useHttps ? 'https' : 'http';
-    const url = `${protocol}://${host}:${port}${path}`;
+    // Auto-switch to HTTPS if port is 443 and not explicitly disabled
+    let protocol = (useHttps || port === 443) ? 'https' : 'http';
+    let url = `${protocol}://${host}:${port}${path}`;
 
     try {
-        const response = await httpGet(url, timeout);
+        let response = await httpGet(url, timeout);
+
+        // If we hit HTTP but it redirects to HTTPS, follow it once if it's the same host
+        if (!useHttps && port === 80 && [301, 302, 307, 308].includes(response.status)) {
+            const location = response.headers['location'];
+            if (location && location.startsWith('https://' + host)) {
+                try {
+                    const httpsResponse = await httpGet(location, timeout);
+                    response = httpsResponse;
+                    url = location;
+                    protocol = 'https';
+                } catch {
+                    // Fall back to original response if HTTPS fails
+                }
+            }
+        }
 
         const contentType = response.headers['content-type'] || '';
         const authHeader = response.headers['www-authenticate'];
-        const requiresAuth = response.status === 401 || response.status === 403 || !!authHeader;
+        const isRedirect = [301, 302, 303, 307, 308].includes(response.status);
+        const isSessionError = response.status === 400 && response.body.toLowerCase().includes('sessionid');
+        const requiresAuth = response.status === 401 || response.status === 403 || isRedirect || !!authHeader;
 
         let type = 'unknown';
         let serverInfo = undefined;
@@ -258,6 +276,10 @@ export async function checkEndpoint(host, port, path, timeout, useHttps = false)
         // Check for SSE
         if (contentType.includes('text/event-stream')) {
             type = 'sse';
+        }
+        // Check for sessionId in response body (common in gateways even with wrong content-type)
+        else if (response.body.toLowerCase().includes('sessionid')) {
+            type = 'streamable-http';
         }
         // Check for JSON-based MCP
         else if (contentType.includes('application/json')) {
@@ -289,28 +311,28 @@ export async function checkEndpoint(host, port, path, timeout, useHttps = false)
         }
 
         // Only return if this looks like an MCP endpoint
-        if (response.status >= 200 && response.status < 500) {
+        if ((response.status >= 200 && response.status < 500) || isSessionError) {
             // Require it to either have a recognized type, 
-            // or be a 200 OK on a path that is very likely to be MCP
+            // or be a 200/302 OK/Redirect on a path that is very likely to be MCP
             if (type !== 'unknown') {
                 return {
                     host,
                     port,
-                    url,
+                    url: new URL(url).toString(),
                     type,
                     requiresAuth,
                     serverInfo
                 };
             }
 
-            // If type is unknown, only flag if it's a 200 and the path contains 'mcp'
+            // If type is unknown, only flag if it's a 200 or 302 and the path contains 'mcp'
             // and we haven't already ruled it out as HTML
-            if (response.status === 200 && path.includes('mcp')) {
+            if ((response.status === 200 || isRedirect || isSessionError) && path.includes('mcp')) {
                 return {
                     host,
                     port,
-                    url,
-                    type,
+                    url: new URL(url).toString(),
+                    type: isSessionError ? 'streamable-http' : (type || 'unknown'),
                     requiresAuth,
                     serverInfo
                 };
@@ -339,7 +361,7 @@ export async function scanHost(host, options = {}) {
     const {
         ports = DEFAULT_PORTS,
         paths = MCP_PATHS,
-        timeout = 2000,
+        timeout = 5000,
         https: useHttps = false,
         delay = 0,
         onProgress
@@ -351,48 +373,36 @@ export async function scanHost(host, options = {}) {
     if (delay > 0) {
         // Sequential scan when delay is requested
         for (const port of ports) {
-            for (const path of paths) {
-                if (onProgress) {
-                    onProgress({ host, port, path });
-                }
+            const pathPromises = paths.map(path => {
+                if (onProgress) onProgress({ host, port, path });
+                return checkEndpoint(host, port, path, timeout, useHttps);
+            });
 
-                // Add jitter (±25%) to the delay
-                const jitter = (Math.random() * 0.5) + 0.75;
-                await sleep(delay * jitter);
+            const pathResults = await Promise.all(pathPromises);
+            const resultsForPort = pathResults.filter(r => r !== null);
 
-                const result = await checkEndpoint(host, port, path, timeout, useHttps);
-
-                if (result) {
-                    results.push(result);
-                    break; // Skip other paths for this port
-                }
+            if (resultsForPort.length > 0) {
+                // Prioritize unprotected results
+                const unprotected = resultsForPort.find(r => !r.requiresAuth);
+                results.push(unprotected || resultsForPort[0]);
             }
         }
     } else {
         // Parallel scan for maximum performance
         const portPromises = ports.map(async (port) => {
-            // Check all paths for this port in parallel, resolving as soon as one hits
-            return new Promise((resolve) => {
-                const currentPaths = [...paths];
-                let pending = currentPaths.length;
-                let resolved = false;
-
-                currentPaths.forEach(path => {
-                    if (onProgress) onProgress({ host, port, path });
-
-                    checkEndpoint(host, port, path, timeout, useHttps).then(result => {
-                        if (resolved) return;
-
-                        if (result) {
-                            resolved = true;
-                            resolve(result);
-                        } else {
-                            pending--;
-                            if (pending === 0) resolve(null);
-                        }
-                    });
-                });
+            const pathPromises = paths.map(path => {
+                if (onProgress) onProgress({ host, port, path });
+                return checkEndpoint(host, port, path, timeout, useHttps);
             });
+
+            const pathResults = await Promise.all(pathPromises);
+            const resultsForPort = pathResults.filter(r => r !== null);
+
+            if (resultsForPort.length === 0) return null;
+
+            // Prioritize unprotected results
+            const unprotected = resultsForPort.find(r => !r.requiresAuth);
+            return unprotected || resultsForPort[0];
         });
 
         const portResults = await Promise.all(portPromises);
@@ -470,10 +480,20 @@ export async function scan(target, options = {}) {
         allResults.push(...batchResults.flat());
     }
 
+    // Deduplicate results by URL
+    const uniqueResults = [];
+    const seenUrls = new Set();
+    for (const res of allResults) {
+        if (!seenUrls.has(res.url)) {
+            seenUrls.add(res.url);
+            uniqueResults.push(res);
+        }
+    }
+
     return {
         target: target || 'local network',
         hosts,
-        results: allResults,
+        results: uniqueResults,
         duration: Date.now() - startTime
     };
 }

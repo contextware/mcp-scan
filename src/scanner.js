@@ -160,8 +160,19 @@ function httpGet(url, timeout) {
         const parsedUrl = new URL(url);
         const client = parsedUrl.protocol === 'https:' ? https : http;
 
+        let finished = false;
+
+        // Hard timeout for the entire operation (connection + response body reading)
+        const timeoutId = setTimeout(() => {
+            if (!finished) {
+                finished = true;
+                req.destroy();
+                reject(new Error('Request timeout'));
+            }
+        }, timeout);
+
         const req = client.get(url, {
-            timeout,
+            timeout, // Still set socket timeout for early detection
             headers: {
                 'Accept': 'text/event-stream, application/json, */*',
                 'User-Agent': 'mcp-scan/1.0'
@@ -181,18 +192,41 @@ function httpGet(url, timeout) {
             });
 
             res.on('end', () => {
-                resolve({
-                    status: res.statusCode || 0,
-                    headers: res.headers,
-                    body
-                });
+                if (!finished) {
+                    finished = true;
+                    clearTimeout(timeoutId);
+                    resolve({
+                        status: res.statusCode || 0,
+                        headers: res.headers,
+                        body
+                    });
+                }
+            });
+
+            res.on('error', (err) => {
+                if (!finished) {
+                    finished = true;
+                    clearTimeout(timeoutId);
+                    reject(err);
+                }
             });
         });
 
-        req.on('error', reject);
+        req.on('error', (err) => {
+            if (!finished) {
+                finished = true;
+                clearTimeout(timeoutId);
+                reject(err);
+            }
+        });
+
         req.on('timeout', () => {
-            req.destroy();
-            reject(new Error('Request timeout'));
+            if (!finished) {
+                finished = true;
+                clearTimeout(timeoutId);
+                req.destroy();
+                reject(new Error('Request timeout'));
+            }
         });
     });
 }
@@ -314,24 +348,56 @@ export async function scanHost(host, options = {}) {
     const results = [];
     const seenPorts = new Set();
 
-    for (const port of ports) {
-        for (const path of paths) {
-            if (onProgress) {
-                onProgress({ host, port, path });
-            }
+    if (delay > 0) {
+        // Sequential scan when delay is requested
+        for (const port of ports) {
+            for (const path of paths) {
+                if (onProgress) {
+                    onProgress({ host, port, path });
+                }
 
-            if (delay > 0) {
                 // Add jitter (±25%) to the delay
                 const jitter = (Math.random() * 0.5) + 0.75;
                 await sleep(delay * jitter);
-            }
 
-            const result = await checkEndpoint(host, port, path, timeout, useHttps);
+                const result = await checkEndpoint(host, port, path, timeout, useHttps);
 
-            if (result && !seenPorts.has(port)) {
-                seenPorts.add(port);
-                results.push(result);
+                if (result) {
+                    results.push(result);
+                    break; // Skip other paths for this port
+                }
             }
+        }
+    } else {
+        // Parallel scan for maximum performance
+        const portPromises = ports.map(async (port) => {
+            // Check all paths for this port in parallel, resolving as soon as one hits
+            return new Promise((resolve) => {
+                const currentPaths = [...paths];
+                let pending = currentPaths.length;
+                let resolved = false;
+
+                currentPaths.forEach(path => {
+                    if (onProgress) onProgress({ host, port, path });
+
+                    checkEndpoint(host, port, path, timeout, useHttps).then(result => {
+                        if (resolved) return;
+
+                        if (result) {
+                            resolved = true;
+                            resolve(result);
+                        } else {
+                            pending--;
+                            if (pending === 0) resolve(null);
+                        }
+                    });
+                });
+            });
+        });
+
+        const portResults = await Promise.all(portPromises);
+        for (const res of portResults) {
+            if (res) results.push(res);
         }
     }
 

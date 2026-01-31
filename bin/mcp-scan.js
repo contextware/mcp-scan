@@ -47,7 +47,7 @@ const colors = {
 const supportsColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const c = (color, text) => supportsColor ? `${colors[color]}${text}${colors.reset}` : text;
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 
 const HELP = `
 ${c('bold', 'mcp-scan')} - Scan for unprotected MCP servers
